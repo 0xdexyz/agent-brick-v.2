@@ -1,0 +1,12 @@
+const listeners = new Set<() => void>();
+
+export function openCommandPalette() {
+  listeners.forEach((listener) => listener());
+}
+
+export function onOpenCommandPalette(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
