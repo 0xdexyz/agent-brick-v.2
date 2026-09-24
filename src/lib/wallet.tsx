@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { mockSolanaKey } from "./format";
+import { useConnection, useWallet as useSolanaWalletAdapter } from "@solana/wallet-adapter-react";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 type WalletStatus = "disconnected" | "connecting" | "connected";
 
@@ -8,71 +9,92 @@ interface WalletContextValue {
   address: string | null;
   provider: string | null;
   balance: number;
-  portfolioUsd: number;
+  balanceKnown: boolean;
+  balanceError: string | null;
   ownedAgentIds: string[];
   activeAgentId: string | null;
   blurBalances: boolean;
-  connect: (provider?: string) => void;
   disconnect: () => void;
-  fund: () => void;
   addOwnedAgent: (id: string) => void;
   setActiveAgent: (id: string) => void;
   toggleBlurBalances: () => void;
 }
 
-const SOL_PRICE_USD = 180;
-const STORAGE_KEY = "sentinel-ai-wallet-v1";
+const STORAGE_KEY = "sentinel-ai-account-v1";
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 
-function loadOwnedAgents(): string[] {
+function loadAccountState(): { ownedAgentIds: string[]; activeAgentId: string | null } {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) return { ownedAgentIds: [], activeAgentId: null };
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed.ownedAgentIds) ? parsed.ownedAgentIds : [];
+    const ownedAgentIds = Array.isArray(parsed.ownedAgentIds) ? parsed.ownedAgentIds : [];
+    const activeAgentId = typeof parsed.activeAgentId === "string" ? parsed.activeAgentId : null;
+    return { ownedAgentIds, activeAgentId: activeAgentId && ownedAgentIds.includes(activeAgentId) ? activeAgentId : ownedAgentIds[0] ?? null };
   } catch {
-    return [];
+    return { ownedAgentIds: [], activeAgentId: null };
   }
 }
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<WalletStatus>("disconnected");
-  const [address, setAddress] = useState<string | null>(null);
-  const [provider, setProvider] = useState<string | null>(null);
+  const { publicKey, connected, connecting, disconnect: adapterDisconnect, wallet } = useSolanaWalletAdapter();
+  const { connection } = useConnection();
+
   const [balance, setBalance] = useState(0);
-  const [ownedAgentIds, setOwnedAgentIds] = useState<string[]>(loadOwnedAgents);
-  const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
+  const [balanceKnown, setBalanceKnown] = useState(false);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
+  const initialAccount = useState(loadAccountState)[0];
+  const [ownedAgentIds, setOwnedAgentIds] = useState<string[]>(initialAccount.ownedAgentIds);
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(initialAccount.activeAgentId);
   const [blurBalances, setBlurBalances] = useState(false);
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ownedAgentIds }));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ownedAgentIds, activeAgentId }));
     } catch {
       // storage unavailable; ownership list simply won't persist
     }
-  }, [ownedAgentIds]);
+  }, [ownedAgentIds, activeAgentId]);
 
-  const connect = useCallback((selectedProvider?: string) => {
-    setStatus("connecting");
-    setProvider(selectedProvider ?? "Phantom");
-    window.setTimeout(() => {
-      setAddress(mockSolanaKey(Date.now()));
-      setStatus("connected");
-    }, 900);
-  }, []);
+  useEffect(() => {
+    if (!publicKey) {
+      setBalance(0);
+      setBalanceKnown(false);
+      setBalanceError(null);
+      return;
+    }
+    let cancelled = false;
+    const fetchBalance = () => {
+      connection
+        .getBalance(publicKey)
+        .then((lamports) => {
+          if (cancelled) return;
+          setBalance(lamports / LAMPORTS_PER_SOL);
+          setBalanceKnown(true);
+          setBalanceError(null);
+        })
+        .catch((err) => {
+          // RPC hiccup (public mainnet RPC rate-limits browser calls) — keep the last
+          // known balance rather than clearing it, but flag it as unverified so the UI
+          // doesn't block a send on a stale/failed read.
+          if (cancelled) return;
+          setBalanceKnown(false);
+          setBalanceError(err instanceof Error ? err.message : "Could not reach the Solana network.");
+        });
+    };
+    fetchBalance();
+    const interval = window.setInterval(fetchBalance, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [publicKey, connection]);
 
   const disconnect = useCallback(() => {
-    setStatus("disconnected");
-    setAddress(null);
-    setProvider(null);
-    setBalance(0);
+    adapterDisconnect().catch(() => {});
     setActiveAgentId(null);
-  }, []);
-
-  const fund = useCallback(() => {
-    setBalance((prev) => prev + 5);
-  }, []);
+  }, [adapterDisconnect]);
 
   const addOwnedAgent = useCallback((id: string) => {
     setOwnedAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
@@ -87,24 +109,41 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setBlurBalances((prev) => !prev);
   }, []);
 
+  const status: WalletStatus = connected ? "connected" : connecting ? "connecting" : "disconnected";
+  const address = publicKey ? publicKey.toBase58() : null;
+  const provider = wallet?.adapter.name ?? null;
+
   const value = useMemo<WalletContextValue>(
     () => ({
       status,
       address,
       provider,
       balance,
-      portfolioUsd: balance * SOL_PRICE_USD,
+      balanceKnown,
+      balanceError,
       ownedAgentIds,
       activeAgentId,
       blurBalances,
-      connect,
       disconnect,
-      fund,
       addOwnedAgent,
       setActiveAgent,
       toggleBlurBalances,
     }),
-    [status, address, provider, balance, ownedAgentIds, activeAgentId, blurBalances, connect, disconnect, fund, addOwnedAgent, setActiveAgent, toggleBlurBalances],
+    [
+      status,
+      address,
+      provider,
+      balance,
+      balanceKnown,
+      balanceError,
+      ownedAgentIds,
+      activeAgentId,
+      blurBalances,
+      disconnect,
+      addOwnedAgent,
+      setActiveAgent,
+      toggleBlurBalances,
+    ],
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

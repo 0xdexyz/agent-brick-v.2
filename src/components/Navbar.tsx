@@ -12,6 +12,29 @@ const navLinks = [
   { label: "Activity", to: "/app/activity" },
 ];
 
+const X_URL = "https://x.com/TryAgentBlock";
+
+const XIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+  </svg>
+);
+
+const XLink = ({ className }: { className?: string }) => (
+  <a
+    href={X_URL}
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label="AgentBlock on X"
+    className={cn(
+      "flex items-center justify-center h-10 w-10 rounded-lg border border-border text-foreground hover:bg-secondary transition-colors shrink-0",
+      className,
+    )}
+  >
+    <XIcon className="h-4 w-4" />
+  </a>
+);
+
 const Navbar = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -21,9 +44,9 @@ const Navbar = () => {
     <nav className="pointer-events-auto sticky top-0 z-50 bg-hero-bg/95 backdrop-blur border-b border-border">
       <div className="flex items-center justify-between px-6 md:px-8 lg:px-16 py-4 gap-4">
         <NavLink to="/app" className="flex items-center gap-2 text-foreground text-xl font-semibold tracking-tight shrink-0" onClick={() => setMenuOpen(false)}>
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm">S</span>
+          <img src="/logo.png" alt="" className="h-8 w-8 object-contain" />
           <span className="hidden sm:inline">
-            SENTINEL <span className="text-primary">AI</span>
+            AGENT<span className="text-primary">BLOCK</span>
           </span>
         </NavLink>
 
@@ -65,7 +88,8 @@ const Navbar = () => {
           >
             + Launch Agent
           </button>
-          <WalletButton className="hidden xl:flex" />
+          <XLink className="hidden md:flex" />
+          <WalletButton className="hidden md:flex" />
           <button
             onClick={() => setMenuOpen((prev) => !prev)}
             aria-label="Toggle menu"
@@ -111,6 +135,15 @@ const Navbar = () => {
             Search
             <kbd className="rounded bg-secondary px-1.5 py-0.5 text-[10px]">⌘K</kbd>
           </button>
+          <a
+            href={X_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground"
+          >
+            <XIcon className="h-3.5 w-3.5" />
+            Follow on X
+          </a>
           <button
             onClick={() => {
               setMenuOpen(false);
@@ -120,7 +153,7 @@ const Navbar = () => {
           >
             + Launch Agent
           </button>
-          <WalletButton className="w-full [&>button]:flex-1" />
+          <WalletButton className="w-full [&>button]:flex-1 md:hidden" />
         </div>
       )}
 

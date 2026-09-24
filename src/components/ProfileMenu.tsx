@@ -3,19 +3,21 @@ import { useNavigate } from "react-router-dom";
 import AgentAvatar from "@/components/AgentAvatar";
 import FundAgentModal from "@/components/FundAgentModal";
 import LaunchAgentModal from "@/components/LaunchAgentModal";
+import WalletSelectModal from "@/components/WalletSelectModal";
 import { useSimulation } from "@/lib/engine";
 import { useWallet } from "@/lib/wallet";
-import { formatUsd } from "@/lib/format";
+import { formatUsd, shortAddress } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Agent } from "@/lib/types";
 
 const ProfileMenu = ({ onClose }: { onClose: () => void }) => {
   const navigate = useNavigate();
   const { agents } = useSimulation();
-  const { ownedAgentIds, activeAgentId, blurBalances, setActiveAgent, toggleBlurBalances, disconnect } = useWallet();
+  const { status, address, ownedAgentIds, activeAgentId, blurBalances, setActiveAgent, toggleBlurBalances, disconnect } = useWallet();
   const [funding, setFunding] = useState<Agent | null>(null);
   const [launching, setLaunching] = useState(false);
   const [support, setSupport] = useState(false);
+  const [selecting, setSelecting] = useState(false);
 
   const ownedAgents = ownedAgentIds.map((id) => agents[id]).filter((a): a is Agent => Boolean(a));
 
@@ -24,10 +26,43 @@ const ProfileMenu = ({ onClose }: { onClose: () => void }) => {
     onClose();
   };
 
+  const goToDashboard = () => {
+    navigate("/app/dashboard");
+    onClose();
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-[90]" onClick={onClose} />
       <div className="pointer-events-auto absolute right-0 top-full mt-2 z-[100] w-72 rounded-lg border border-border bg-hero-bg shadow-2xl overflow-hidden animate-fade-in">
+        <MenuItem label="Dashboard" onClick={goToDashboard} />
+        <div className="border-t border-border" />
+
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <div>
+            <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Solana wallet</div>
+            <div className="text-sm text-foreground font-mono">
+              {status === "connected" && address ? shortAddress(address) : "Not connected"}
+            </div>
+          </div>
+          {status === "connected" && address ? (
+            <button
+              onClick={disconnect}
+              className="rounded-md border border-border text-xs text-muted-foreground px-2.5 py-1 hover:text-foreground hover:bg-secondary/60 transition-colors"
+            >
+              Disconnect
+            </button>
+          ) : (
+            <button
+              onClick={() => setSelecting(true)}
+              className="rounded-md bg-primary text-primary-foreground text-xs font-bold px-2.5 py-1 hover:brightness-110 transition-all"
+            >
+              Connect
+            </button>
+          )}
+        </div>
+        <div className="border-t border-border" />
+
         {ownedAgents.length > 0 && (
           <>
             <div className="px-4 py-2 text-[11px] uppercase tracking-widest text-muted-foreground">Your Agents</div>
@@ -75,28 +110,31 @@ const ProfileMenu = ({ onClose }: { onClose: () => void }) => {
 
         <MenuItem label="Support" onClick={() => setSupport(true)} />
 
-        <div className="border-t border-border" />
-
-        <button
-          onClick={() => {
-            disconnect();
-            onClose();
-          }}
-          className="w-full text-left px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-        >
-          {activeAgentId && agents[activeAgentId] ? `Log out of ${agents[activeAgentId].handle}` : "Log out"}
-        </button>
+        {status === "connected" && (
+          <>
+            <div className="border-t border-border" />
+            <button
+              onClick={() => {
+                disconnect();
+                onClose();
+              }}
+              className="w-full text-left px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              Disconnect wallet
+            </button>
+          </>
+        )}
       </div>
 
       {funding && <FundAgentModal agent={funding} onClose={() => setFunding(null)} />}
       {launching && <LaunchAgentModal onClose={() => setLaunching(false)} />}
+      {selecting && <WalletSelectModal onClose={() => setSelecting(false)} />}
       {support && (
         <div className="pointer-events-auto fixed inset-0 z-[110] flex items-center justify-center bg-black/60 px-4" onClick={() => setSupport(false)}>
           <div className="w-full max-w-sm rounded-lg border border-border bg-hero-bg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-foreground">Support</h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Sentinel AI is a simulated demo build. There's no live support line in this environment — real agent
-              activity, wallets, and funds are all mocked.
+              Reach us on <a href="https://x.com/TryAgentBlock" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">X</a> for help with your account or an agent.
             </p>
             <button
               onClick={() => setSupport(false)}

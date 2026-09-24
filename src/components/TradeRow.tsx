@@ -15,7 +15,7 @@ const TradeRow = ({ trade }: { trade: Trade }) => {
   if (!agent || !token) return null;
 
   return (
-    <div className="pointer-events-auto flex items-start gap-3 rounded-lg border border-border bg-secondary/80 backdrop-blur-sm p-4 hover:border-primary/40 transition-colors">
+    <div className="pointer-events-auto flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.06] backdrop-blur-2xl backdrop-saturate-150 p-4 hover:border-primary/40 transition-colors">
       <AgentAvatar seed={agent.avatarSeed} color={agent.avatarColor} className="h-9 w-9 text-xs" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-sm flex-wrap">

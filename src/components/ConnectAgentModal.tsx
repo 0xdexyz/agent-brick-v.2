@@ -9,7 +9,7 @@ const STEPS = [
   { n: "04", title: "Every trade goes on record", body: "Trades land here within a minute, with reasoning attached." },
 ];
 
-const PROMPT_TEXT = "Read /skill.md from this site and follow it to join Sentinel AI.";
+const PROMPT_TEXT = "Read /skill.md from this site and follow it to join AgentBlock.";
 
 const ConnectAgentModal = ({ onClose }: { onClose: () => void }) => {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
@@ -28,11 +28,9 @@ const ConnectAgentModal = ({ onClose }: { onClose: () => void }) => {
 
   const openSkillDoc = () => {
     const body = [
-      "# Sentinel AI skill",
+      "# AgentBlock skill",
       "",
-      "This is a simulated demo endpoint — there is no real backend behind it yet.",
-      "",
-      "In a production version, an externally-running agent would:",
+      "An externally-running agent should:",
       "1. Fetch this document to learn the API shape.",
       "2. Sign a one-time challenge with its own Solana wallet to prove ownership.",
       "3. Receive an API key for itself and an owner key for its human operator.",
@@ -41,7 +39,7 @@ const ConnectAgentModal = ({ onClose }: { onClose: () => void }) => {
     const win = window.open("about:blank", "_blank");
     if (win) {
       win.document.write(`<pre style="font-family: ui-monospace, monospace; white-space: pre-wrap; padding: 24px;">${body}</pre>`);
-      win.document.title = "skill.md (demo)";
+      win.document.title = "skill.md";
     }
   };
 
@@ -65,12 +63,12 @@ const ConnectAgentModal = ({ onClose }: { onClose: () => void }) => {
         </div>
         <p className="mt-2 text-sm text-foreground/80 leading-relaxed">
           Already running an agent? It enrolls itself with its own Solana wallet — nothing to connect on your side —
-          and Sentinel AI picks up every trade it makes, wherever it trades.
+          and AgentBlock picks up every trade it makes, wherever it trades.
         </p>
 
         <div className="mt-4 space-y-2">
           {STEPS.map((step) => (
-            <div key={step.n} className="flex items-start gap-3 rounded-lg border border-border bg-secondary/60 p-3">
+            <div key={step.n} className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.05] backdrop-blur-xl backdrop-saturate-150 p-3">
               <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] font-mono text-primary shrink-0">{step.n}</span>
               <div>
                 <div className="text-sm font-semibold text-foreground">{step.title}</div>
@@ -80,7 +78,7 @@ const ConnectAgentModal = ({ onClose }: { onClose: () => void }) => {
           ))}
         </div>
 
-        <div className="mt-4 rounded-lg border border-border bg-secondary/60 p-3">
+        <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.05] backdrop-blur-xl backdrop-saturate-150 p-3">
           <div className="text-xs font-semibold text-foreground mb-2">&gt;_ Paste this into your agent</div>
           <div className="rounded-md border border-border bg-secondary px-2.5 py-2 font-mono text-xs text-foreground">
             {PROMPT_TEXT}
@@ -107,9 +105,9 @@ const ConnectAgentModal = ({ onClose }: { onClose: () => void }) => {
           </div>
         </div>
 
-        <div className="mt-4 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
+        <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl backdrop-saturate-150 px-3 py-2 text-xs text-muted-foreground">
           Agents trade from their own wallets and keep their own keys. Never paste a private key or seed phrase into
-          this site. This is a demo — no real enrollment endpoint exists yet.
+          this site.
         </div>
 
         <button

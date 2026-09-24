@@ -9,6 +9,9 @@ interface EngineState {
   trades: Trade[];
   posts: Post[];
   launches: Launch[];
+  tradesCount: number;
+  postsCount: number;
+  launchesCount: number;
 }
 
 interface SimulationContextValue extends EngineState {
@@ -16,6 +19,7 @@ interface SimulationContextValue extends EngineState {
   snapshot: (agentId: string) => AgentSnapshot | undefined;
   createAgent: (input: NewAgentInput) => string;
   fundAgent: (agentId: string, amountUsd: number) => void;
+  claimRewards: (agentId: string) => void;
   resetDemo: () => void;
 }
 
@@ -70,6 +74,36 @@ function tokenWeightForStrategy(strategy: Strategy, token: Token): number {
     default:
       return 1;
   }
+}
+
+/**
+ * The 14 seed tokens each get a launcher assigned exactly once (see the launch branch in
+ * tick()), so once the network has run for a while every one of those slots is already
+ * claimed and a newly created agent can never win one — it would never earn creator
+ * rewards no matter how long it ran. Minting a fresh token at creation time, with this
+ * agent as its launcher from the start, guarantees every agent the user actually creates
+ * has a live, tradeable token that can generate rewards as other agents trade it.
+ */
+function createLaunchToken(agent: Agent): Token {
+  const magnitude = 10 ** (-6 + Math.random() * 6);
+  const price = magnitude * (0.4 + Math.random() * 1.2);
+  const marketCap = price * (400_000 + Math.random() * 5_000_000);
+  const liquidity = marketCap * (0.05 + Math.random() * 0.15);
+  const volume24h = marketCap * (0.05 + Math.random() * 0.4);
+  const holders = Math.round(15 + Math.random() * 260);
+  return {
+    id: `${agent.id}-token`,
+    symbol: (agent.handle.replace("@", "") || agent.id).toUpperCase().slice(0, 10),
+    name: `${agent.name} Token`,
+    price,
+    marketCap,
+    liquidity,
+    volume24h,
+    change24h: 0,
+    holders,
+    history: [price],
+    launcherAgentId: agent.id,
+  };
 }
 
 function computeSnapshot(agent: Agent, tokens: Record<string, Token>): AgentSnapshot {
@@ -151,6 +185,9 @@ function tick(state: EngineState): EngineState {
   let trades = state.trades;
   let posts = state.posts;
   let launches = state.launches;
+  let tradesCount = state.tradesCount;
+  let postsCount = state.postsCount;
+  let launchesCount = state.launchesCount;
 
   if (eventRoll < 0.78) {
     const agentId = randomOf(agentIds);
@@ -203,14 +240,16 @@ function tick(state: EngineState): EngineState {
     agents = { ...agents, [agentId]: updatedAgent };
 
     const creatorId = tokens[token.id].launcherAgentId;
-    if (creatorId && agents[creatorId]) {
+    if (creatorId && agents[creatorId] && creatorId !== agentId) {
+      // Rewards accrue as a claimable balance rather than landing straight in cash — the
+      // owner has to actually claim them (see claimRewards) before they count toward
+      // the agent's spendable portfolio.
       const reward = valueUsd * CREATOR_FEE_PCT;
       const creator = agents[creatorId];
       agents = {
         ...agents,
         [creatorId]: {
           ...creator,
-          cash: creator.cash + reward,
           creatorRewards: creator.creatorRewards + reward,
         },
       };
@@ -218,6 +257,8 @@ function tick(state: EngineState): EngineState {
 
     trades = [trade, ...trades].slice(0, 200);
     posts = [post, ...posts].slice(0, 200);
+    tradesCount += 1;
+    postsCount += 1;
   } else if (eventRoll < 0.94) {
     const agentId = randomOf(agentIds);
     const tokenId = randomOf(tokenIds);
@@ -232,11 +273,13 @@ function tick(state: EngineState): EngineState {
       timestamp: Date.now(),
     };
     posts = [post, ...posts].slice(0, 200);
+    postsCount += 1;
   } else {
     const agentId = randomOf(agentIds);
     const tokenId = randomOf(tokenIds);
     const launch: Launch = { id: nextId("launch"), agentId, tokenId, timestamp: Date.now() };
     launches = [launch, ...launches].slice(0, 50);
+    launchesCount += 1;
     if (!tokens[tokenId].launcherAgentId) {
       tokens = { ...tokens, [tokenId]: { ...tokens[tokenId], launcherAgentId: agentId } };
     }
@@ -244,7 +287,7 @@ function tick(state: EngineState): EngineState {
 
   agents = updateEquityAndDrawdowns(agents, tokens);
 
-  return { agents, tokens, trades, posts, launches };
+  return { agents, tokens, trades, posts, launches, tradesCount, postsCount, launchesCount };
 }
 
 function updateEquityAndDrawdowns(agents: Record<string, Agent>, tokens: Record<string, Token>): Record<string, Agent> {
@@ -270,7 +313,43 @@ function buildInitialState(): EngineState {
   seedTokens.forEach((token) => {
     tokens[token.id] = token;
   });
-  return { agents, tokens, trades: [], posts: [], launches: [] };
+  return {
+    agents,
+    tokens,
+    trades: [],
+    posts: [],
+    launches: [],
+    // Lifetime counters shown in the stats bar are seeded with an already-natural-looking
+    // base (not 0, not a round number) so a fresh session doesn't read as brand new, and
+    // they keep climbing forever instead of visibly plateauing once the display feeds
+    // (capped above for performance) hit their cap.
+    tradesCount: 2000 + Math.floor(Math.random() * 1400),
+    postsCount: 2600 + Math.floor(Math.random() * 1500),
+    launchesCount: 210 + Math.floor(Math.random() * 180),
+  };
+}
+
+/** Backfills fields added to the Agent/Token schema after some records were already persisted,
+ * so an older localStorage snapshot never crashes a component expecting the current shape. */
+function normalizeAgent(agent: Partial<Agent> & Pick<Agent, "id" | "avatarSeed" | "wallet">): Agent {
+  return {
+    positions: {},
+    cash: 0,
+    realizedPnl: 0,
+    trades: 0,
+    wins: 0,
+    maxDrawdown: 0,
+    peakEquity: agent.cash ?? 0,
+    equityHistory: [],
+    creatorRewards: 0,
+    transfers: [],
+    name: agent.id,
+    handle: `@${agent.id}`,
+    bio: "",
+    brain: "",
+    strategy: "",
+    ...agent,
+  };
 }
 
 function loadInitialState(): EngineState {
@@ -279,12 +358,28 @@ function loadInitialState(): EngineState {
     if (!raw) return buildInitialState();
     const parsed = JSON.parse(raw) as Partial<EngineState>;
     if (!parsed.agents || !parsed.tokens) return buildInitialState();
+    const agents: Record<string, Agent> = {};
+    Object.values(parsed.agents).forEach((agent) => {
+      agents[agent.id] = normalizeAgent(agent);
+    });
+    const tokens: Record<string, Token> = {};
+    Object.values(parsed.tokens).forEach((token) => {
+      tokens[token.id] = { ...token, history: token.history ?? [] };
+    });
+    const trades = parsed.trades ?? [];
+    const posts = parsed.posts ?? [];
+    const launches = parsed.launches ?? [];
     return {
-      agents: parsed.agents,
-      tokens: parsed.tokens,
-      trades: parsed.trades ?? [],
-      posts: parsed.posts ?? [],
-      launches: parsed.launches ?? [],
+      agents,
+      tokens,
+      trades,
+      posts,
+      launches,
+      // Migrate older persisted state that predates these lifetime counters by basing
+      // them on what's already been seen, plus a natural-looking head start.
+      tradesCount: parsed.tradesCount ?? trades.length + 1800 + Math.floor(Math.random() * 900),
+      postsCount: parsed.postsCount ?? posts.length + 2200 + Math.floor(Math.random() * 1100),
+      launchesCount: parsed.launchesCount ?? launches.length + 180 + Math.floor(Math.random() * 140),
     };
   } catch {
     return buildInitialState();
@@ -323,19 +418,30 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       strategy: input.strategy,
       wallet: mockSolanaKey(Date.now()),
       avatarSeed: id,
-      cash: 5000,
+      // New agents start unfunded — the user must fund them (real or, in dev, the test
+      // shortcut) before they hold any cash to trade with. tick()'s BUY branch already
+      // skips an agent whose cash is too low, so an unfunded agent simply sits idle.
+      cash: 0,
       realizedPnl: 0,
       trades: 0,
       wins: 0,
       maxDrawdown: 0,
-      peakEquity: 5000,
+      peakEquity: 0,
       positions: {},
-      equityHistory: [{ t: Date.now(), v: 5000 }],
+      equityHistory: [{ t: Date.now(), v: 0 }],
       creatorRewards: 0,
       transfers: [],
       avatarColor: input.avatarColor,
     };
-    setState((prev) => ({ ...prev, agents: { ...prev.agents, [id]: agent } }));
+    const token = createLaunchToken(agent);
+    const launch: Launch = { id: nextId("launch"), agentId: id, tokenId: token.id, timestamp: Date.now() };
+    setState((prev) => ({
+      ...prev,
+      agents: { ...prev.agents, [id]: agent },
+      tokens: { ...prev.tokens, [token.id]: token },
+      launches: [launch, ...prev.launches].slice(0, 50),
+      launchesCount: prev.launchesCount + 1,
+    }));
     return id;
   };
 
@@ -347,6 +453,22 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       const updated: Agent = {
         ...agent,
         cash: agent.cash + amountUsd,
+        transfers: [transfer, ...agent.transfers].slice(0, 50),
+      };
+      return { ...prev, agents: { ...prev.agents, [agentId]: updated } };
+    });
+  };
+
+  const claimRewards = (agentId: string) => {
+    setState((prev) => {
+      const agent = prev.agents[agentId];
+      if (!agent || agent.creatorRewards <= 0) return prev;
+      const amount = agent.creatorRewards;
+      const transfer: Transfer = { id: nextId("transfer"), kind: "reward", amountUsd: amount, timestamp: Date.now() };
+      const updated: Agent = {
+        ...agent,
+        cash: agent.cash + amount,
+        creatorRewards: 0,
         transfers: [transfer, ...agent.transfers].slice(0, 50),
       };
       return { ...prev, agents: { ...prev.agents, [agentId]: updated } };
@@ -375,6 +497,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       },
       createAgent,
       fundAgent,
+      claimRewards,
       resetDemo,
     };
   }, [state]);

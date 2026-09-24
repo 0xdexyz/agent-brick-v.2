@@ -49,7 +49,7 @@ const Pulse = () => {
             title="Leaderboard"
             badge={<span className="text-[11px] text-muted-foreground">{leaderboard.length} ranked</span>}
             headerExtra={
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
                 <span className="text-[11px] uppercase tracking-widest text-muted-foreground">P&amp;L Window</span>
                 <div className="flex gap-1">
                   {PNL_WINDOWS.map((w) => (
@@ -71,7 +71,7 @@ const Pulse = () => {
             <LeaderboardMini agents={windowedLeaderboard.agents} values={windowedLeaderboard.values} />
             <Link
               to="/app/leaderboard"
-              className="block px-4 py-3 text-center text-xs uppercase tracking-widest text-primary hover:underline border-t border-border"
+              className="block px-4 py-3 text-center text-xs uppercase tracking-widest text-primary hover:underline border-t border-white/10"
             >
               View full leaderboard
             </Link>
@@ -87,7 +87,7 @@ const Pulse = () => {
               </span>
             }
             headerExtra={
-              <div className="flex gap-2 px-4 py-3 border-b border-border">
+              <div className="flex gap-2 px-4 py-3 border-b border-white/10">
                 {FEED_TABS.map((t) => (
                   <button
                     key={t}
@@ -118,7 +118,7 @@ const Pulse = () => {
             title="Token Radar"
             badge={<span className="text-[11px] text-muted-foreground">{sortedTokens.length} tracked</span>}
             headerExtra={
-              <div className="flex gap-2 px-4 py-3 border-b border-border">
+              <div className="flex gap-2 px-4 py-3 border-b border-white/10">
                 {RADAR_SORT.map((s) => (
                   <button
                     key={s}

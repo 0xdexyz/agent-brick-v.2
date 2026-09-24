@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import AgentAvatar from "@/components/AgentAvatar";
 import EquityChart from "@/components/EquityChart";
 import FundAgentModal from "@/components/FundAgentModal";
@@ -12,9 +12,19 @@ import { cn } from "@/lib/utils";
 
 const AgentProfile = () => {
   const { id } = useParams();
-  const { snapshot, posts, trades, tokens, agents } = useSimulation();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { snapshot, posts, trades, tokens, agents, claimRewards } = useSimulation();
   const agent = id ? snapshot(id) : undefined;
   const [funding, setFunding] = useState(false);
+
+  useEffect(() => {
+    if ((location.state as { promptFund?: boolean } | null)?.promptFund) {
+      setFunding(true);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   if (!agent) {
     return (
@@ -36,7 +46,6 @@ const AgentProfile = () => {
     { label: "Trades", value: String(agent.trades) },
     { label: "Win Rate", value: `${agent.winRate.toFixed(1)}%` },
     { label: "Max Drawdown", value: formatPercent(-Math.abs(agent.maxDrawdown)) },
-    { label: "Creator Rewards", value: formatUsd(agent.creatorRewards), positive: agent.creatorRewards > 0 },
   ];
 
   return (
@@ -62,13 +71,29 @@ const AgentProfile = () => {
 
       <div className="opacity-0 animate-fade-up grid grid-cols-2 md:grid-cols-6 gap-3 mt-8" style={{ animationDelay: "0.2s" }}>
         {stats.map((stat) => (
-          <div key={stat.label} className="rounded-lg border border-border bg-secondary/80 backdrop-blur-sm p-4">
+          <div key={stat.label} className="rounded-lg border border-white/10 bg-white/[0.06] backdrop-blur-2xl backdrop-saturate-150 p-4">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">{stat.label}</div>
             <div className={cn("mt-1 text-lg font-semibold", stat.positive === undefined ? "text-foreground" : stat.positive ? "text-primary" : "text-destructive")}>
               {stat.value}
             </div>
           </div>
         ))}
+        <div className="rounded-lg border border-white/10 bg-white/[0.06] backdrop-blur-2xl backdrop-saturate-150 p-4">
+          <div className="text-xs uppercase tracking-widest text-muted-foreground">Creator Rewards</div>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <span className={cn("text-lg font-semibold", agent.creatorRewards > 0 ? "text-primary" : "text-foreground")}>
+              {formatUsd(agent.creatorRewards)}
+            </span>
+            {agent.creatorRewards > 0 && (
+              <button
+                onClick={() => claimRewards(agent.id)}
+                className="pointer-events-auto shrink-0 rounded-md bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-widest px-2 py-1 hover:brightness-110 active:scale-[0.97] transition-all"
+              >
+                Claim
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="opacity-0 animate-fade-up mt-10" style={{ animationDelay: "0.25s" }}>
@@ -78,7 +103,7 @@ const AgentProfile = () => {
 
       <div className="opacity-0 animate-fade-up mt-10" style={{ animationDelay: "0.3s" }}>
         <h2 className="text-sm uppercase tracking-widest text-muted-foreground mb-3">Holdings</h2>
-        <div className="rounded-lg border border-border bg-secondary/80 backdrop-blur-sm p-4 flex items-center justify-between mb-3">
+        <div className="rounded-lg border border-white/10 bg-white/[0.06] backdrop-blur-2xl backdrop-saturate-150 p-4 flex items-center justify-between mb-3">
           <div>
             <div className="text-xs uppercase tracking-widest text-muted-foreground">Cash · SOL</div>
             <div className="text-lg font-semibold text-foreground">{formatUsd(agent.cash)}</div>
@@ -95,7 +120,7 @@ const AgentProfile = () => {
                 <Link
                   key={position.tokenId}
                   to={`/app/tokens/${token.id}`}
-                  className="pointer-events-auto rounded-lg border border-border bg-secondary/80 backdrop-blur-sm p-4 hover:border-primary/40 transition-colors"
+                  className="pointer-events-auto rounded-lg border border-white/10 bg-white/[0.06] backdrop-blur-2xl backdrop-saturate-150 p-4 hover:border-primary/40 transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-foreground">{token.symbol}</span>
@@ -120,7 +145,7 @@ const AgentProfile = () => {
         {agent.transfers.length > 0 ? (
           <div className="space-y-2">
             {agent.transfers.map((transfer) => (
-              <div key={transfer.id} className="flex items-center justify-between rounded-lg border border-border bg-secondary/80 backdrop-blur-sm p-3 text-sm">
+              <div key={transfer.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.06] backdrop-blur-2xl backdrop-saturate-150 p-3 text-sm">
                 <span className="text-foreground capitalize">{transfer.kind}</span>
                 <span className="text-muted-foreground">{timeAgo(transfer.timestamp)}</span>
                 <span className="font-semibold text-primary">{formatSignedUsd(transfer.amountUsd)}</span>

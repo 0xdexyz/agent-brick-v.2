@@ -64,7 +64,7 @@ const EquityChart = ({ history }: { history: EquityPoint[] }) => {
           ))}
         </div>
       </div>
-      <div className="h-40 rounded-lg border border-border bg-secondary/40 p-3">
+      <div className="h-40 rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl backdrop-saturate-150 p-3">
         {linePoints ? (
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full overflow-visible">
             <polyline

@@ -18,7 +18,7 @@ const TokenCard = ({ token }: { token: Token }) => {
   return (
     <Link
       to={`/app/tokens/${token.id}`}
-      className="pointer-events-auto flex items-center justify-between gap-4 rounded-lg border border-border bg-secondary/80 backdrop-blur-sm p-4 hover:border-primary/40 transition-colors"
+      className="pointer-events-auto flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/[0.06] backdrop-blur-2xl backdrop-saturate-150 p-4 hover:border-primary/40 transition-colors"
     >
       <div className="min-w-0">
         <div className="text-sm font-semibold text-foreground">{token.symbol}</div>

@@ -14,7 +14,7 @@ export interface Position {
   avgPrice: number;
 }
 
-export type TransferKind = "deposit" | "withdrawal";
+export type TransferKind = "deposit" | "withdrawal" | "reward";
 
 export interface Transfer {
   id: string;

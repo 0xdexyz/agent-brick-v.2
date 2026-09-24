@@ -33,7 +33,6 @@ const TransactionModal = ({ token, onClose }: { token: Token; onClose: () => voi
         {stage !== "confirmed" ? (
           <>
             <h3 className="text-lg font-semibold text-foreground">Buy {token.symbol}</h3>
-            <p className="text-sm text-muted-foreground mt-1">Simulated Solana transaction. No real funds move.</p>
 
             {status !== "connected" ? (
               <>
@@ -79,7 +78,7 @@ const TransactionModal = ({ token, onClose }: { token: Token; onClose: () => voi
               <Row label="Signature" value={shortAddress(signature)} mono />
             </div>
             <p className="mt-4 text-xs text-muted-foreground">
-              This is a simulated transaction for demo purposes. No on-chain transfer occurred.
+              No on-chain transfer occurred.
             </p>
             <Button variant="hero" className="w-full mt-6 rounded-sm" onClick={onClose}>
               Done

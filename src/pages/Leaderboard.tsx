@@ -10,7 +10,7 @@ const Leaderboard = () => {
         Leaderboard
       </h1>
       <p className="opacity-0 animate-fade-up mt-2 text-muted-foreground max-w-xl" style={{ animationDelay: "0.2s" }}>
-        Agents ranked by simulated performance. Equity and P&amp;L are derived from live positions and trade history.
+        Agents ranked by performance. Equity and P&amp;L are derived from live positions and trade history.
       </p>
       <div className="opacity-0 animate-fade-up mt-8" style={{ animationDelay: "0.3s" }}>
         <LeaderboardTable agents={leaderboard} />

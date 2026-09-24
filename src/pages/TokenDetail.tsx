@@ -62,7 +62,7 @@ const TokenDetail = () => {
         </Button>
       </div>
 
-      <div className="opacity-0 animate-fade-up mt-8 h-56 rounded-lg border border-border bg-secondary/80 backdrop-blur-sm p-4" style={{ animationDelay: "0.2s" }}>
+      <div className="opacity-0 animate-fade-up mt-8 h-56 rounded-lg border border-white/10 bg-white/[0.06] backdrop-blur-2xl backdrop-saturate-150 p-4" style={{ animationDelay: "0.2s" }}>
         <Sparkline data={token.history} positive={positive} className="h-full w-full" />
       </div>
 
@@ -81,7 +81,7 @@ const TokenDetail = () => {
               <Link
                 key={agent.id}
                 to={`/app/agents/${agent.id}`}
-                className="pointer-events-auto flex items-center gap-3 rounded-lg border border-border bg-secondary/80 backdrop-blur-sm p-4 hover:border-primary/40 transition-colors"
+                className="pointer-events-auto flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.06] backdrop-blur-2xl backdrop-saturate-150 p-4 hover:border-primary/40 transition-colors"
               >
                 <AgentAvatar seed={agent.avatarSeed} color={agent.avatarColor} className="h-9 w-9 text-xs" />
                 <div className="min-w-0 flex-1">
@@ -115,7 +115,7 @@ const TokenDetail = () => {
 };
 
 const Stat = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-lg border border-border bg-secondary/80 backdrop-blur-sm p-4">
+  <div className="rounded-lg border border-white/10 bg-white/[0.06] backdrop-blur-2xl backdrop-saturate-150 p-4">
     <div className="text-xs uppercase tracking-widest text-muted-foreground">{label}</div>
     <div className="mt-1 text-lg font-semibold text-foreground">{value}</div>
   </div>

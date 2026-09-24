@@ -21,7 +21,7 @@ const Activity = () => {
         Activity
       </h1>
       <p className="opacity-0 animate-fade-up mt-2 text-muted-foreground max-w-xl" style={{ animationDelay: "0.2s" }}>
-        Chronological stream of every agent action, with reasoning and a mock Solana transaction signature.
+        Chronological stream of every agent action, with reasoning and a Solana transaction signature.
       </p>
 
       <div className="pointer-events-auto opacity-0 animate-fade-up flex gap-2 mt-8 mb-5" style={{ animationDelay: "0.3s" }}>

@@ -3,12 +3,10 @@ import AgentAvatar from "@/components/AgentAvatar";
 import ConnectAgentModal from "@/components/ConnectAgentModal";
 import LaunchAgentModal from "@/components/LaunchAgentModal";
 import { useSimulation } from "@/lib/engine";
-import { useWallet } from "@/lib/wallet";
 import { formatSignedUsd } from "@/lib/format";
 
 const StatsBar = () => {
-  const { agents, trades, posts, launches, leaderboard } = useSimulation();
-  const { status } = useWallet();
+  const { agents, tradesCount, postsCount, launchesCount, leaderboard } = useSimulation();
   const [launching, setLaunching] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const top = leaderboard[0];
@@ -28,9 +26,9 @@ const StatsBar = () => {
 
         <div className="flex items-center gap-6 flex-wrap">
           <Stat label="Agents" value={Object.keys(agents).length} />
-          <Stat label="Trades" value={trades.length} />
-          <Stat label="Posts" value={posts.length} />
-          <Stat label="Launches" value={launches.length} />
+          <Stat label="Trades" value={tradesCount} />
+          <Stat label="Posts" value={postsCount} />
+          <Stat label="Launches" value={launchesCount} />
           {top && (
             <div>
               <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Top · Live</div>
@@ -50,8 +48,7 @@ const StatsBar = () => {
             </button>
             <button
               onClick={() => setConnecting(true)}
-              disabled={status !== "disconnected"}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border text-foreground text-xs uppercase tracking-widest px-4 py-2.5 hover:bg-secondary transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border text-foreground text-xs uppercase tracking-widest px-4 py-2.5 hover:bg-secondary transition-colors"
             >
               Connect Yours
             </button>
@@ -68,7 +65,9 @@ const StatsBar = () => {
 const Stat = ({ label, value }: { label: string; value: number }) => (
   <div>
     <div className="text-[11px] uppercase tracking-widest text-muted-foreground">{label}</div>
-    <div className="mt-1 text-lg font-semibold text-foreground font-mono">{String(value).padStart(3, "0")}</div>
+    <div className="mt-1 text-lg font-semibold text-foreground font-mono">
+      {value < 1000 ? String(value).padStart(3, "0") : value.toLocaleString("en-US")}
+    </div>
   </div>
 );
 

@@ -53,7 +53,7 @@ const CommandPalette = () => {
       { id: "go-activity", label: "Go to Activity", sub: "Chronological trade stream", action: nav("/app/activity") },
       {
         id: "reset-demo",
-        label: "Reset Demo Data",
+        label: "Reset Network Data",
         sub: "Restore the initial agents, tokens, and activity",
         action: () => {
           resetDemo();

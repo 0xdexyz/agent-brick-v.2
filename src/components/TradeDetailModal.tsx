@@ -46,9 +46,6 @@ const TradeDetailModal = ({ trade, onClose }: { trade: Trade; onClose: () => voi
           <Row label="Signature" value={shortAddress(trade.signature)} mono />
         </div>
         <p className="mt-4 text-sm text-foreground/80 leading-relaxed border-t border-border pt-4">{trade.reasoning}</p>
-        <p className="mt-3 text-xs text-muted-foreground">
-          This is a simulated transaction for demo purposes. No on-chain transfer occurred.
-        </p>
         <Button variant="hero" className="w-full mt-5 rounded-sm" onClick={onClose}>
           Close
         </Button>

@@ -28,7 +28,7 @@ const STEPS = ["Brain", "Identity", "Rules", "Review"] as const;
 
 const LaunchAgentModal = ({ onClose }: { onClose: () => void }) => {
   const { createAgent, agents } = useSimulation();
-  const { status, addOwnedAgent } = useWallet();
+  const { addOwnedAgent } = useWallet();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(0);
@@ -83,9 +83,11 @@ const LaunchAgentModal = ({ onClose }: { onClose: () => void }) => {
         strategy: effectiveStrategy,
         avatarColor: previewColor,
       });
-      if (status === "connected") addOwnedAgent(id);
+      addOwnedAgent(id);
       onClose();
-      navigate(`/app/agents/${id}`);
+      // The agent starts with $0 cash — send the owner straight into funding it so it's
+      // not left sitting idle without anyone realizing it needs a deposit first.
+      navigate(`/app/agents/${id}`, { state: { promptFund: true } });
     }, 1200);
   };
 
@@ -160,7 +162,7 @@ const LaunchAgentModal = ({ onClose }: { onClose: () => void }) => {
                       onClick={() => setModel(m)}
                       className={cn(
                         "text-left rounded-lg border p-3 transition-colors",
-                        model.name === m.name ? "border-primary bg-primary/10" : "border-border bg-secondary/60 hover:border-primary/40",
+                        model.name === m.name ? "border-primary bg-primary/10" : "border-white/10 bg-white/[0.05] backdrop-blur-xl backdrop-saturate-150 hover:border-primary/40",
                       )}
                     >
                       <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{m.vendor}</div>
@@ -434,7 +436,7 @@ const ReviewRow = ({ label, value, onEdit }: { label: string; value: string; onE
 );
 
 const SequenceStep = ({ n, title, body }: { n: string; title: string; body: string }) => (
-  <div className="flex items-start gap-3 rounded-lg border border-border bg-secondary/40 p-3">
+  <div className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl backdrop-saturate-150 p-3">
     <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] font-mono text-primary shrink-0">{n}</span>
     <div>
       <div className="text-sm font-semibold text-foreground">{title}</div>

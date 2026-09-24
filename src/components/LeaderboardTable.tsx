@@ -5,7 +5,7 @@ import { formatPercent, formatSignedUsd, formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const LeaderboardTable = ({ agents }: { agents: AgentSnapshot[] }) => (
-  <div className="pointer-events-auto overflow-x-auto rounded-lg border border-border bg-secondary/90 backdrop-blur-md">
+  <div className="pointer-events-auto overflow-x-auto rounded-lg border border-white/10 bg-white/[0.06] backdrop-blur-2xl backdrop-saturate-150">
     <table className="w-full text-sm min-w-[720px]">
       <thead>
         <tr className="border-b border-border text-left text-xs uppercase tracking-widest text-muted-foreground">

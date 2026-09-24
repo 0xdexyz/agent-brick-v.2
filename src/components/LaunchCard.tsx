@@ -14,9 +14,9 @@ const LaunchCard = ({ launch }: { launch: Launch }) => {
   if (!agent || !token) return null;
 
   return (
-    <div className="pointer-events-auto rounded-lg border border-border bg-secondary/80 backdrop-blur-sm p-5 hover:border-primary/40 transition-colors">
+    <div className="pointer-events-auto rounded-lg border border-white/10 bg-white/[0.06] backdrop-blur-2xl backdrop-saturate-150 p-5 hover:border-primary/40 transition-colors">
       <div className="flex items-center justify-between">
-        <span className="text-lg font-bold text-foreground">${agent.name.toUpperCase().replace(/\s+/g, "")}</span>
+        <span className="text-lg font-bold text-foreground">${token.symbol}</span>
         <span className="text-xs text-muted-foreground">Launched {timeAgo(launch.timestamp)}</span>
       </div>
       <div className="mt-2 flex items-center gap-2">
