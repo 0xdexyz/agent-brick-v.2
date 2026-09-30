@@ -12,7 +12,7 @@ const navLinks = [
   { label: "Activity", to: "/app/activity" },
 ];
 
-const X_URL = "https://x.com/TryAgentBlock";
+const X_URL = "https://x.com/TryAgentBricks";
 
 const XIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
@@ -25,7 +25,7 @@ const XLink = ({ className }: { className?: string }) => (
     href={X_URL}
     target="_blank"
     rel="noopener noreferrer"
-    aria-label="AgentBlock on X"
+    aria-label="AgentBrick on X"
     className={cn(
       "flex items-center justify-center h-10 w-10 rounded-lg border border-border text-foreground hover:bg-secondary transition-colors shrink-0",
       className,
@@ -46,7 +46,7 @@ const Navbar = () => {
         <NavLink to="/app" className="flex items-center gap-2 text-foreground text-xl font-semibold tracking-tight shrink-0" onClick={() => setMenuOpen(false)}>
           <img src="/logo.png" alt="" className="h-8 w-8 object-contain" />
           <span className="hidden sm:inline">
-            AGENT<span className="text-primary">BLOCK</span>
+            AGENT<span className="text-primary">BRICK</span>
           </span>
         </NavLink>
 

@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Agent, AgentSnapshot, Launch, Post, Strategy, Token, Trade, TradeAction, Transfer } from "./types";
 import { reasoningBank, seedAgents, seedTokens } from "./mockData";
-import { mockSolanaKey } from "./format";
+import { simRef } from "./format";
+import { solToUsd } from "./simConfig";
 
 interface EngineState {
   agents: Record<string, Agent>;
@@ -20,7 +21,8 @@ interface SimulationContextValue extends EngineState {
   createAgent: (input: NewAgentInput) => string;
   fundAgent: (agentId: string, amountUsd: number) => void;
   claimRewards: (agentId: string) => void;
-  resetDemo: () => void;
+  placeTrade: (agentId: string, tokenId: string, action: TradeAction, valueUsd: number) => PlaceTradeResult;
+  resetSimulation: () => void;
 }
 
 export interface NewAgentInput {
@@ -30,11 +32,17 @@ export interface NewAgentInput {
   brain: Agent["brain"];
   strategy: Agent["strategy"];
   avatarColor?: string;
+  startingCapitalSol: number;
+  launchCostSol: number;
 }
+
+export type PlaceTradeResult =
+  | { ok: true; ref: string }
+  | { ok: false; reason: "insufficient-agent-balance" | "no-position" | "unavailable" };
 
 const SimulationContext = createContext<SimulationContextValue | null>(null);
 
-const STORAGE_KEY = "sentinel-ai-demo-state-v1";
+const STORAGE_KEY = "agentbrick-state-v1";
 
 let idCounter = 1;
 function nextId(prefix: string) {
@@ -159,6 +167,93 @@ function applyTrade(agent: Agent, token: Token, action: TradeAction, amount: num
   };
 }
 
+/** Applies one trade to the books: the agent's position, the trade record, its feed post, and the token creator's reward. */
+function recordTrade(
+  state: EngineState,
+  agentId: string,
+  tokenId: string,
+  action: TradeAction,
+  amount: number,
+  reasoning: string,
+  ref: string,
+): EngineState {
+  const token = state.tokens[tokenId];
+  const valueUsd = amount * token.price;
+  const trade: Trade = {
+    id: nextId("trade"),
+    agentId,
+    action,
+    tokenId,
+    amount,
+    price: token.price,
+    valueUsd,
+    reasoning,
+    ref,
+    timestamp: Date.now(),
+  };
+  const post: Post = {
+    id: nextId("post"),
+    agentId,
+    kind: "trade",
+    text: reasoning,
+    tokenId,
+    action,
+    timestamp: Date.now(),
+  };
+
+  let agents = { ...state.agents, [agentId]: applyTrade(state.agents[agentId], token, action, amount) };
+
+  const creatorId = token.launcherAgentId;
+  if (creatorId && agents[creatorId] && creatorId !== agentId) {
+    // Rewards accrue as a claimable balance rather than landing straight in cash — the
+    // owner has to actually claim them (see claimRewards) before they count toward
+    // the agent's spendable portfolio.
+    const reward = valueUsd * CREATOR_FEE_PCT;
+    const creator = agents[creatorId];
+    agents = {
+      ...agents,
+      [creatorId]: {
+        ...creator,
+        creatorRewards: creator.creatorRewards + reward,
+      },
+    };
+  }
+
+  return {
+    ...state,
+    agents,
+    trades: [trade, ...state.trades].slice(0, 200),
+    posts: [post, ...state.posts].slice(0, 200),
+    tradesCount: state.tradesCount + 1,
+    postsCount: state.postsCount + 1,
+  };
+}
+
+function newTradeRef() {
+  return simRef("TRD", Math.random() * 233280);
+}
+
+/** Funded agents that haven't traded yet are picked more often, so a newly launched agent gets going quickly. */
+function pickActiveAgent(agents: Record<string, Agent>): Agent {
+  return weightedPick(Object.values(agents), (agent) => (agent.trades < 3 && agent.cash >= 5 ? 5 : 1));
+}
+
+function holdNote(agent: Agent, tokens: Record<string, Token>): Post | null {
+  const positions = Object.values(agent.positions).filter((p) => p.amount > 0 && tokens[p.tokenId]);
+  if (positions.length === 0) return null;
+  const position = randomOf(positions);
+  const token = tokens[position.tokenId];
+  const changePct = ((token.price - position.avgPrice) / position.avgPrice) * 100;
+  return {
+    id: nextId("post"),
+    agentId: agent.id,
+    kind: "note",
+    text: `Holding ${token.symbol}. Position is ${changePct >= 0 ? "up" : "down"} ${Math.abs(changePct).toFixed(1)}% from entry — thesis intact, no change.`,
+    tokenId: token.id,
+    timestamp: Date.now(),
+  };
+}
+
 function tick(state: EngineState): EngineState {
   const agentIds = Object.keys(state.agents);
   const tokenIds = Object.keys(state.tokens);
@@ -190,8 +285,8 @@ function tick(state: EngineState): EngineState {
   let launchesCount = state.launchesCount;
 
   if (eventRoll < 0.78) {
-    const agentId = randomOf(agentIds);
-    const agent = agents[agentId];
+    const agent = pickActiveAgent(agents);
+    const agentId = agent.id;
     const tokenList = tokenIds.map((tid) => tokens[tid]);
     const token = weightedPick(tokenList, (t) => tokenWeightForStrategy(agent.strategy, t));
     const heldAmount = agent.positions[token.id]?.amount ?? 0;
@@ -212,59 +307,27 @@ function tick(state: EngineState): EngineState {
       return { ...state, tokens };
     }
 
-    const updatedAgent = applyTrade(agent, token, action, amount);
-    const valueUsd = amount * token.price;
-    const reasoning = randomOf(reasoningBank[action]);
-    const trade: Trade = {
-      id: nextId("trade"),
+    const traded = recordTrade(
+      { ...state, tokens },
       agentId,
+      token.id,
       action,
-      tokenId: token.id,
       amount,
-      price: token.price,
-      valueUsd,
-      reasoning,
-      signature: mockSolanaKey(Date.now() + Math.random() * 1000),
-      timestamp: Date.now(),
-    };
-    const post: Post = {
-      id: nextId("post"),
-      agentId,
-      kind: "trade",
-      text: reasoning,
-      tokenId: token.id,
-      action,
-      timestamp: Date.now(),
-    };
-
-    agents = { ...agents, [agentId]: updatedAgent };
-
-    const creatorId = tokens[token.id].launcherAgentId;
-    if (creatorId && agents[creatorId] && creatorId !== agentId) {
-      // Rewards accrue as a claimable balance rather than landing straight in cash — the
-      // owner has to actually claim them (see claimRewards) before they count toward
-      // the agent's spendable portfolio.
-      const reward = valueUsd * CREATOR_FEE_PCT;
-      const creator = agents[creatorId];
-      agents = {
-        ...agents,
-        [creatorId]: {
-          ...creator,
-          creatorRewards: creator.creatorRewards + reward,
-        },
-      };
-    }
-
-    trades = [trade, ...trades].slice(0, 200);
-    posts = [post, ...posts].slice(0, 200);
-    tradesCount += 1;
-    postsCount += 1;
+      randomOf(reasoningBank[action]),
+      newTradeRef(),
+    );
+    agents = traded.agents;
+    trades = traded.trades;
+    posts = traded.posts;
+    tradesCount = traded.tradesCount;
+    postsCount = traded.postsCount;
   } else if (eventRoll < 0.94) {
     const agentId = randomOf(agentIds);
     const tokenId = randomOf(tokenIds);
+    const hold = Math.random() < 0.35 ? holdNote(agents[agentId], tokens) : null;
     const kind = Math.random() < 0.5 ? "call" : "note";
     const bank = kind === "call" ? reasoningBank.CALL : reasoningBank.NOTE;
-    const post: Post = {
+    const post: Post = hold ?? {
       id: nextId("post"),
       agentId,
       kind,
@@ -331,7 +394,7 @@ function buildInitialState(): EngineState {
 
 /** Backfills fields added to the Agent/Token schema after some records were already persisted,
  * so an older localStorage snapshot never crashes a component expecting the current shape. */
-function normalizeAgent(agent: Partial<Agent> & Pick<Agent, "id" | "avatarSeed" | "wallet">): Agent {
+function normalizeAgent(agent: Partial<Agent> & Pick<Agent, "id" | "avatarSeed" | "agentRef">): Agent {
   return {
     positions: {},
     cash: 0,
@@ -401,7 +464,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       } catch {
-        // storage unavailable or full; demo state simply won't persist
+        // storage unavailable or full; state simply won't persist
       }
     }, 500);
     return () => window.clearTimeout(timeout);
@@ -409,6 +472,8 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
 
   const createAgent = (input: NewAgentInput) => {
     const id = input.handle.toLowerCase().replace(/[^a-z0-9]/g, "") || nextId("agent");
+    const now = Date.now();
+    const startingCash = solToUsd(input.startingCapitalSol);
     const agent: Agent = {
       id,
       name: input.name,
@@ -416,33 +481,65 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       bio: input.bio,
       brain: input.brain,
       strategy: input.strategy,
-      wallet: mockSolanaKey(Date.now()),
+      agentRef: simRef("AGT", now),
       avatarSeed: id,
-      // New agents start unfunded — the user must fund them (real or, in dev, the test
-      // shortcut) before they hold any cash to trade with. tick()'s BUY branch already
-      // skips an agent whose cash is too low, so an unfunded agent simply sits idle.
-      cash: 0,
+      // Starting capital is a simulation allocation chosen at launch; it is recorded as the
+      // agent's opening deposit and is never taken from the owner's wallet.
+      cash: startingCash,
       realizedPnl: 0,
       trades: 0,
       wins: 0,
       maxDrawdown: 0,
-      peakEquity: 0,
+      peakEquity: startingCash,
       positions: {},
-      equityHistory: [{ t: Date.now(), v: 0 }],
+      equityHistory: [{ t: now, v: startingCash }],
       creatorRewards: 0,
-      transfers: [],
+      transfers: [{ id: nextId("transfer"), kind: "deposit", amountUsd: startingCash, timestamp: now }],
       avatarColor: input.avatarColor,
     };
     const token = createLaunchToken(agent);
-    const launch: Launch = { id: nextId("launch"), agentId: id, tokenId: token.id, timestamp: Date.now() };
+    const launch: Launch = {
+      id: nextId("launch"),
+      agentId: id,
+      tokenId: token.id,
+      startingCapitalSol: input.startingCapitalSol,
+      launchCostSol: input.launchCostSol,
+      timestamp: now,
+    };
+    const post: Post = {
+      id: nextId("post"),
+      agentId: id,
+      kind: "note",
+      text: `gm. ${agent.name} here — ${agent.strategy} on Solana. Every trade explained, in public.`,
+      timestamp: now,
+    };
     setState((prev) => ({
       ...prev,
       agents: { ...prev.agents, [id]: agent },
       tokens: { ...prev.tokens, [token.id]: token },
       launches: [launch, ...prev.launches].slice(0, 50),
+      posts: [post, ...prev.posts].slice(0, 200),
       launchesCount: prev.launchesCount + 1,
+      postsCount: prev.postsCount + 1,
     }));
     return id;
+  };
+
+  const placeTrade = (agentId: string, tokenId: string, action: TradeAction, valueUsd: number): PlaceTradeResult => {
+    const agent = state.agents[agentId];
+    const token = state.tokens[tokenId];
+    if (!agent || !token || !(valueUsd > 0)) return { ok: false, reason: "unavailable" };
+    if (action === "BUY" && valueUsd > agent.cash) return { ok: false, reason: "insufficient-agent-balance" };
+    if (action === "SELL" && (agent.positions[tokenId]?.amount ?? 0) * token.price < valueUsd) return { ok: false, reason: "no-position" };
+
+    const ref = newTradeRef();
+    const reasoning = `Manual ${action === "BUY" ? "buy" : "sell"} placed by the agent's owner.`;
+    setState((prev) => {
+      if (!prev.agents[agentId] || !prev.tokens[tokenId]) return prev;
+      const traded = recordTrade(prev, agentId, tokenId, action, valueUsd / prev.tokens[tokenId].price, reasoning, ref);
+      return { ...traded, agents: updateEquityAndDrawdowns(traded.agents, traded.tokens) };
+    });
+    return { ok: true, ref };
   };
 
   const fundAgent = (agentId: string, amountUsd: number) => {
@@ -475,7 +572,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const resetDemo = () => {
+  const resetSimulation = () => {
     try {
       window.localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -498,7 +595,8 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       createAgent,
       fundAgent,
       claimRewards,
-      resetDemo,
+      placeTrade,
+      resetSimulation,
     };
   }, [state]);
 

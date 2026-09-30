@@ -4,23 +4,27 @@ import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 type WalletStatus = "disconnected" | "connecting" | "connected";
 
+type BalanceStatus = "idle" | "loading" | "ready" | "error";
+
 interface WalletContextValue {
   status: WalletStatus;
+  /** Public address of the connected wallet account. */
   address: string | null;
   provider: string | null;
-  balance: number;
-  balanceKnown: boolean;
-  balanceError: string | null;
+  /** The connected account's on-chain SOL balance; null until read, or when the network read failed. */
+  balance: number | null;
+  balanceStatus: BalanceStatus;
   ownedAgentIds: string[];
   activeAgentId: string | null;
   blurBalances: boolean;
   disconnect: () => void;
+  refreshBalance: () => void;
   addOwnedAgent: (id: string) => void;
   setActiveAgent: (id: string) => void;
   toggleBlurBalances: () => void;
 }
 
-const STORAGE_KEY = "sentinel-ai-account-v1";
+const STORAGE_KEY = "agentbrick-account-v1";
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 
@@ -41,9 +45,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const { publicKey, connected, connecting, disconnect: adapterDisconnect, wallet } = useSolanaWalletAdapter();
   const { connection } = useConnection();
 
-  const [balance, setBalance] = useState(0);
-  const [balanceKnown, setBalanceKnown] = useState(false);
-  const [balanceError, setBalanceError] = useState<string | null>(null);
+  const [balance, setBalance] = useState<number | null>(null);
+  const [balanceStatus, setBalanceStatus] = useState<BalanceStatus>("idle");
+  const [refreshTick, setRefreshTick] = useState(0);
   const initialAccount = useState(loadAccountState)[0];
   const [ownedAgentIds, setOwnedAgentIds] = useState<string[]>(initialAccount.ownedAgentIds);
   const [activeAgentId, setActiveAgentId] = useState<string | null>(initialAccount.activeAgentId);
@@ -59,37 +63,46 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!publicKey) {
-      setBalance(0);
-      setBalanceKnown(false);
-      setBalanceError(null);
+      setBalance(null);
+      setBalanceStatus("idle");
       return;
     }
     let cancelled = false;
+    // A different account or a manual refresh starts from "unknown" rather than showing the previous figure.
+    setBalance(null);
+    setBalanceStatus("loading");
     const fetchBalance = () => {
       connection
         .getBalance(publicKey)
         .then((lamports) => {
           if (cancelled) return;
           setBalance(lamports / LAMPORTS_PER_SOL);
-          setBalanceKnown(true);
-          setBalanceError(null);
+          setBalanceStatus("ready");
         })
-        .catch((err) => {
-          // RPC hiccup (public mainnet RPC rate-limits browser calls) — keep the last
-          // known balance rather than clearing it, but flag it as unverified so the UI
-          // doesn't block a send on a stale/failed read.
+        .catch(() => {
+          // RPC failure: report the balance as unavailable rather than keeping a stale
+          // figure, so balance checks never pass or fail on a number that wasn't just read.
           if (cancelled) return;
-          setBalanceKnown(false);
-          setBalanceError(err instanceof Error ? err.message : "Could not reach the Solana network.");
+          setBalance(null);
+          setBalanceStatus("error");
         });
     };
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") fetchBalance();
+    };
     fetchBalance();
-    const interval = window.setInterval(fetchBalance, 15000);
+    const interval = window.setInterval(refreshIfVisible, 15000);
+    window.addEventListener("focus", refreshIfVisible);
+    document.addEventListener("visibilitychange", refreshIfVisible);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      window.removeEventListener("focus", refreshIfVisible);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
     };
-  }, [publicKey, connection]);
+  }, [publicKey, connection, refreshTick]);
+
+  const refreshBalance = useCallback(() => setRefreshTick((n) => n + 1), []);
 
   const disconnect = useCallback(() => {
     adapterDisconnect().catch(() => {});
@@ -119,12 +132,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       address,
       provider,
       balance,
-      balanceKnown,
-      balanceError,
+      balanceStatus,
       ownedAgentIds,
       activeAgentId,
       blurBalances,
       disconnect,
+      refreshBalance,
       addOwnedAgent,
       setActiveAgent,
       toggleBlurBalances,
@@ -134,12 +147,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       address,
       provider,
       balance,
-      balanceKnown,
-      balanceError,
+      balanceStatus,
       ownedAgentIds,
       activeAgentId,
       blurBalances,
       disconnect,
+      refreshBalance,
       addOwnedAgent,
       setActiveAgent,
       toggleBlurBalances,

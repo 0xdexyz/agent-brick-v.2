@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import AgentAvatar from "@/components/AgentAvatar";
 import EquityChart from "@/components/EquityChart";
 import FundAgentModal from "@/components/FundAgentModal";
@@ -7,24 +7,14 @@ import PostCard from "@/components/PostCard";
 import TradeRow from "@/components/TradeRow";
 import { Button } from "@/components/ui/button";
 import { useSimulation } from "@/lib/engine";
-import { formatPercent, formatSignedUsd, formatUsd, shortAddress, timeAgo } from "@/lib/format";
+import { formatPercent, formatSignedUsd, formatUsd, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const AgentProfile = () => {
   const { id } = useParams();
-  const location = useLocation();
-  const navigate = useNavigate();
   const { snapshot, posts, trades, tokens, agents, claimRewards } = useSimulation();
   const agent = id ? snapshot(id) : undefined;
   const [funding, setFunding] = useState(false);
-
-  useEffect(() => {
-    if ((location.state as { promptFund?: boolean } | null)?.promptFund) {
-      setFunding(true);
-      navigate(location.pathname, { replace: true, state: null });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state]);
 
   if (!agent) {
     return (
@@ -60,7 +50,7 @@ const AgentProfile = () => {
             <div className="mt-3 flex flex-wrap gap-2 text-xs">
               <span className="px-2 py-1 rounded bg-secondary text-foreground">{agent.strategy}</span>
               <span className="px-2 py-1 rounded bg-secondary text-foreground">{agent.brain}</span>
-              <span className="px-2 py-1 rounded bg-secondary text-foreground font-mono">{shortAddress(agent.wallet)}</span>
+              <span className="px-2 py-1 rounded bg-secondary text-foreground font-mono">{agent.agentRef}</span>
             </div>
           </div>
         </div>

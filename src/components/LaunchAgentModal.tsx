@@ -3,10 +3,17 @@ import { useNavigate } from "react-router-dom";
 import AgentAvatar, { AGENT_AVATAR_PALETTE } from "@/components/AgentAvatar";
 import ConnectAgentModal from "@/components/ConnectAgentModal";
 import ModalPortal from "@/components/ModalPortal";
+import WalletBalance from "@/components/WalletBalance";
+import WalletSelectModal from "@/components/WalletSelectModal";
 import { Button } from "@/components/ui/button";
+import { checkBalance } from "@/lib/balanceCheck";
 import { useSimulation } from "@/lib/engine";
+import { formatSol } from "@/lib/format";
+import { LAUNCH_FEE_SOL, STARTING_CAPITAL_OPTIONS_SOL } from "@/lib/simConfig";
 import { useWallet } from "@/lib/wallet";
 import { cn } from "@/lib/utils";
+
+type Stage = "form" | "preparing" | "processing" | "completed" | "failed";
 
 const MODELS = [
   { vendor: "Anthropic", name: "Claude Opus 5.5" },
@@ -28,11 +35,14 @@ const STEPS = ["Brain", "Identity", "Rules", "Review"] as const;
 
 const LaunchAgentModal = ({ onClose }: { onClose: () => void }) => {
   const { createAgent, agents } = useSimulation();
-  const { addOwnedAgent } = useWallet();
+  const { status, balance, balanceStatus, addOwnedAgent, refreshBalance } = useWallet();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(0);
   const [connecting, setConnecting] = useState(false);
+  const [selectingWallet, setSelectingWallet] = useState(false);
+  const [capitalSol, setCapitalSol] = useState(1);
+  const [launchedId, setLaunchedId] = useState<string | null>(null);
 
   const [model, setModel] = useState(MODELS[0]);
   const [name, setName] = useState("");
@@ -48,7 +58,12 @@ const LaunchAgentModal = ({ onClose }: { onClose: () => void }) => {
   const [thinkEvery, setThinkEvery] = useState("15 min");
 
   const [error, setError] = useState("");
-  const [stage, setStage] = useState<"form" | "creating">("form");
+  const [stage, setStage] = useState<Stage>("form");
+
+  const walletConnected = status === "connected";
+  const requiredSol = capitalSol + LAUNCH_FEE_SOL;
+  // The launch requirement is checked against the wallet's actual balance; nothing is deducted.
+  const balanceCheck = checkBalance(requiredSol, walletConnected ? balance : null);
 
   const effectiveStrategy = strategy === "Custom..." ? customStrategy || "Custom" : strategy;
   const previewSeed = handle || "agent";
@@ -73,36 +88,105 @@ const LaunchAgentModal = ({ onClose }: { onClose: () => void }) => {
 
   const handleCreate = () => {
     const cleanHandle = handle.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
-    setStage("creating");
+    if (!name.trim() || !cleanHandle) {
+      setError("Name and handle are required.");
+      setStep(1);
+      return;
+    }
+    if (!walletConnected) {
+      setSelectingWallet(true);
+      return;
+    }
+    if (!balanceCheck.ok) return;
+
+    setError("");
+    setStage("preparing");
+    window.setTimeout(() => setStage("processing"), 700);
+    // The launch runs entirely in the app's own engine: no transaction is built, signed, or sent.
     window.setTimeout(() => {
-      const id = createAgent({
-        name: name.trim(),
-        handle: cleanHandle,
-        bio: bio.trim() || "New Solana trading agent.",
-        brain: model.name,
-        strategy: effectiveStrategy,
-        avatarColor: previewColor,
-      });
-      addOwnedAgent(id);
-      onClose();
-      // The agent starts with $0 cash — send the owner straight into funding it so it's
-      // not left sitting idle without anyone realizing it needs a deposit first.
-      navigate(`/app/agents/${id}`, { state: { promptFund: true } });
-    }, 1200);
+      try {
+        const id = createAgent({
+          name: name.trim(),
+          handle: cleanHandle,
+          bio: bio.trim() || "New Solana trading agent.",
+          brain: model.name,
+          strategy: effectiveStrategy,
+          avatarColor: previewColor,
+          startingCapitalSol: capitalSol,
+          launchCostSol: LAUNCH_FEE_SOL,
+        });
+        addOwnedAgent(id);
+        setLaunchedId(id);
+        setStage("completed");
+      } catch {
+        setStage("failed");
+      }
+    }, 1900);
   };
 
-  if (stage === "creating") {
+  if (stage === "preparing" || stage === "processing") {
     return (
       <ModalPortal>
         <div className="pointer-events-auto fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 animate-fade-in">
-          <div className="w-full max-w-sm rounded-lg border border-border bg-hero-bg p-6 shadow-2xl text-center">
-            <p className="text-sm text-muted-foreground animate-pulse-dot">Minting Solana wallet...</p>
-            <p className="text-sm text-muted-foreground animate-pulse-dot mt-2" style={{ animationDelay: "0.3s" }}>
-              Loading strategy...
+          <div className="w-full max-w-sm rounded-lg border border-border bg-hero-bg p-6 shadow-2xl">
+            <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Launching {name.trim()}</div>
+            <div className="mt-4 space-y-3 text-sm">
+              <StatusLine label="Preparing" state={stage === "preparing" ? "active" : "done"} />
+              <StatusLine label="Processing" state={stage === "processing" ? "active" : "pending"} />
+              <StatusLine label="Completed" state="pending" />
+            </div>
+          </div>
+        </div>
+      </ModalPortal>
+    );
+  }
+
+  if (stage === "completed" && launchedId) {
+    const viewAgent = () => {
+      onClose();
+      navigate(`/app/agents/${launchedId}`);
+    };
+    return (
+      <ModalPortal>
+        <div className="pointer-events-auto fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 animate-fade-in">
+          <div className="w-full max-w-sm rounded-lg border border-border bg-hero-bg p-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <AgentAvatar seed={launchedId} color={previewColor} className="h-10 w-10 text-sm" />
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Agent launched successfully</h3>
+                <p className="text-xs text-muted-foreground">@{launchedId}</p>
+              </div>
+            </div>
+            <div className="mt-5 space-y-3 text-sm">
+              <SummaryRow label="Agent" value={name.trim()} />
+              <SummaryRow label="Starting Capital" value={formatSol(capitalSol)} />
+              <SummaryRow label="Launch Cost" value={formatSol(LAUNCH_FEE_SOL)} />
+              <SummaryRow label="Status" value="Active" positive />
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Your wallet balance is unchanged — no SOL left your wallet and no transaction was submitted.
             </p>
-            <p className="text-sm text-muted-foreground animate-pulse-dot mt-2" style={{ animationDelay: "0.6s" }}>
-              Publishing profile...
+            <Button variant="hero" className="w-full mt-5 rounded-sm" onClick={viewAgent}>
+              View Agent
+            </Button>
+          </div>
+        </div>
+      </ModalPortal>
+    );
+  }
+
+  if (stage === "failed") {
+    return (
+      <ModalPortal>
+        <div className="pointer-events-auto fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 animate-fade-in">
+          <div className="w-full max-w-sm rounded-lg border border-border bg-hero-bg p-6 shadow-2xl">
+            <h3 className="text-lg font-semibold text-foreground">Launch failed</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Something went wrong while launching {name.trim() || "your agent"}. Nothing was charged. Please try again.
             </p>
+            <Button variant="hero" className="w-full mt-5 rounded-sm" onClick={() => setStage("form")}>
+              Back to review
+            </Button>
           </div>
         </div>
       </ModalPortal>
@@ -131,7 +215,7 @@ const LaunchAgentModal = ({ onClose }: { onClose: () => void }) => {
             </button>
           </p>
 
-          <div className="mt-5 flex items-center gap-2">
+          <div className="mt-5 flex items-center gap-1.5">
             {STEPS.map((label, i) => (
               <div key={label} className="flex items-center gap-2">
                 <div
@@ -145,7 +229,7 @@ const LaunchAgentModal = ({ onClose }: { onClose: () => void }) => {
                 <span className={cn("text-xs uppercase tracking-widest", i === step ? "text-foreground font-semibold" : "text-muted-foreground")}>
                   {label}
                 </span>
-                {i < STEPS.length - 1 && <span className="w-6 h-px bg-border" />}
+                {i < STEPS.length - 1 && <span className="w-3 h-px bg-border" />}
               </div>
             ))}
           </div>
@@ -338,11 +422,52 @@ const LaunchAgentModal = ({ onClose }: { onClose: () => void }) => {
                   <ReviewRow label="Decides" value={`Every ${thinkEvery}`} onEdit={() => setStep(2)} />
                 </div>
 
-                <div className="mt-4 space-y-2">
-                  <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Launch sequence</div>
-                  <SequenceStep n="01" title="Solana wallet minted" body={`A fresh wallet that only ${name || "your agent"} signs from.`} />
-                  <SequenceStep n="02" title="Owner key issued" body="Shown once. It controls the agent and everything in its wallet." />
-                  <SequenceStep n="03" title="Fuel it with SOL" body="Decisions start within a minute of the deposit. Withdraw any time." />
+                <div className="mt-4">
+                  <div className="text-[11px] uppercase tracking-widest text-muted-foreground mb-2">Starting capital</div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {STARTING_CAPITAL_OPTIONS_SOL.map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => setCapitalSol(option)}
+                        className={cn(
+                          "min-w-0 rounded-md border px-1 py-1.5 text-xs transition-colors",
+                          capitalSol === option ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {formatSol(option)}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl backdrop-saturate-150 px-3 py-2.5 space-y-2 text-sm">
+                    <SummaryRow label="Starting capital" value={formatSol(capitalSol)} />
+                    <SummaryRow label="Launch cost" value={formatSol(LAUNCH_FEE_SOL)} />
+                    <SummaryRow label="Required" value={formatSol(requiredSol)} />
+                    <div className="flex items-center justify-between border-t border-white/10 pt-2">
+                      <span className="text-muted-foreground">Wallet balance</span>
+                      {walletConnected ? <WalletBalance className="text-sm" /> : <span className="text-muted-foreground">Not connected</span>}
+                    </div>
+                  </div>
+
+                  {walletConnected && !balanceCheck.ok && balanceCheck.reason === "insufficient" && (
+                    <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                      <div className="font-semibold">Insufficient SOL balance</div>
+                      <div className="mt-0.5">Required: {formatSol(balanceCheck.required)}</div>
+                      <div>Available: {formatSol(balanceCheck.available ?? 0)}</div>
+                    </div>
+                  )}
+                  {walletConnected && balanceStatus === "error" && (
+                    <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
+                      <span>Couldn&apos;t read your balance from the Solana network.</span>
+                      <button onClick={refreshBalance} className="shrink-0 font-semibold hover:underline">
+                        Retry
+                      </button>
+                    </div>
+                  )}
+
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Your wallet balance is checked, not charged. Launching never requests a transaction, and no SOL leaves your wallet.
+                  </p>
                 </div>
               </div>
             )}
@@ -363,8 +488,19 @@ const LaunchAgentModal = ({ onClose }: { onClose: () => void }) => {
                 Continue →
               </Button>
             ) : (
-              <Button variant="hero" className="rounded-sm" onClick={handleCreate}>
-                + Create Agent
+              <Button
+                variant="hero"
+                className="rounded-sm"
+                onClick={handleCreate}
+                disabled={status === "connecting" || (walletConnected && !balanceCheck.ok)}
+              >
+                {!walletConnected
+                  ? status === "connecting"
+                    ? "Connecting..."
+                    : "Connect Wallet to Launch"
+                  : balanceStatus === "loading" && balance === null
+                    ? "Reading balance..."
+                    : "+ Launch Agent"}
               </Button>
             )}
           </div>
@@ -411,6 +547,7 @@ const LaunchAgentModal = ({ onClose }: { onClose: () => void }) => {
       </div>
 
       {connecting && <ConnectAgentModal onClose={() => setConnecting(false)} />}
+      {selectingWallet && <WalletSelectModal onClose={() => setSelectingWallet(false)} />}
     </div>
     </ModalPortal>
   );
@@ -435,13 +572,24 @@ const ReviewRow = ({ label, value, onEdit }: { label: string; value: string; onE
   </div>
 );
 
-const SequenceStep = ({ n, title, body }: { n: string; title: string; body: string }) => (
-  <div className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl backdrop-saturate-150 p-3">
-    <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] font-mono text-primary shrink-0">{n}</span>
-    <div>
-      <div className="text-sm font-semibold text-foreground">{title}</div>
-      <div className="text-xs text-muted-foreground">{body}</div>
-    </div>
+const SummaryRow = ({ label, value, positive }: { label: string; value: string; positive?: boolean }) => (
+  <div className="flex items-center justify-between">
+    <span className="text-muted-foreground">{label}</span>
+    <span className={cn("font-semibold", positive ? "text-primary" : "text-foreground")}>{value}</span>
+  </div>
+);
+
+const StatusLine = ({ label, state }: { label: string; state: "done" | "active" | "pending" }) => (
+  <div className="flex items-center gap-3">
+    <span
+      className={cn(
+        "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold shrink-0",
+        state === "done" ? "bg-primary text-primary-foreground" : state === "active" ? "bg-foreground text-background animate-pulse-dot" : "bg-secondary text-muted-foreground",
+      )}
+    >
+      {state === "done" ? "✓" : ""}
+    </span>
+    <span className={state === "pending" ? "text-muted-foreground" : "text-foreground"}>{label}</span>
   </div>
 );
 

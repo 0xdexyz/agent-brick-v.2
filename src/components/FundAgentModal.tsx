@@ -1,34 +1,40 @@
 import { useState } from "react";
 import AgentAvatar from "@/components/AgentAvatar";
 import ModalPortal from "@/components/ModalPortal";
+import WalletBalance from "@/components/WalletBalance";
 import WalletSelectModal from "@/components/WalletSelectModal";
 import { Button } from "@/components/ui/button";
+import { checkBalance } from "@/lib/balanceCheck";
 import { useSimulation } from "@/lib/engine";
 import { useWallet } from "@/lib/wallet";
-import { formatUsd } from "@/lib/format";
+import { formatSol, formatUsd } from "@/lib/format";
+import { FUND_OPTIONS_SOL, solToUsd } from "@/lib/simConfig";
 import type { Agent } from "@/lib/types";
 
-const USD_AMOUNTS = [250, 1000, 2500];
-
-type Stage = "form" | "confirming" | "confirmed";
+type Stage = "form" | "processing" | "completed";
 
 const FundAgentModal = ({ agent, onClose }: { agent: Agent; onClose: () => void }) => {
   const { fundAgent } = useSimulation();
-  const { status, address } = useWallet();
+  const { status, address, balance, balanceStatus, refreshBalance } = useWallet();
 
-  const [amountUsd, setAmountUsd] = useState(1000);
+  const [amountSol, setAmountSol] = useState(FUND_OPTIONS_SOL[1]);
   const [stage, setStage] = useState<Stage>("form");
   const [selecting, setSelecting] = useState(false);
-  const [fundedAmount, setFundedAmount] = useState(0);
+  const [fundedSol, setFundedSol] = useState(0);
+
+  const connected = status === "connected";
+  // The allocation is checked against the wallet's actual balance; nothing is deducted.
+  const balanceCheck = checkBalance(amountSol, connected ? balance : null);
 
   const handleFund = () => {
-    if (status !== "connected" || amountUsd <= 0) return;
-    setStage("confirming");
+    if (!connected || amountSol <= 0 || !balanceCheck.ok) return;
+    setStage("processing");
+    // Funding is an allocation inside the app's own engine: no transaction is built, signed, or sent.
     window.setTimeout(() => {
-      fundAgent(agent.id, amountUsd);
-      setFundedAmount(amountUsd);
-      setStage("confirmed");
-    }, 700);
+      fundAgent(agent.id, solToUsd(amountSol));
+      setFundedSol(amountSol);
+      setStage("completed");
+    }, 900);
   };
 
   return (
@@ -51,19 +57,22 @@ const FundAgentModal = ({ agent, onClose }: { agent: Agent; onClose: () => void 
               <div className="text-sm font-semibold text-foreground">{agent.name}</div>
               <div className="text-xs text-muted-foreground">{agent.handle}</div>
             </div>
-            <div className="text-sm font-semibold text-foreground">{formatUsd(agent.cash)}</div>
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Agent balance</div>
+              <div className="text-sm font-semibold text-foreground">{formatUsd(agent.cash)}</div>
+            </div>
           </div>
 
-          {stage !== "confirmed" ? (
+          {stage !== "completed" ? (
             <div className="mt-5 border-t border-border pt-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs uppercase tracking-widest text-muted-foreground">Wallet</span>
-                {status === "connected" && address && (
+                {connected && address && (
                   <span className="text-xs font-mono text-muted-foreground">{address.slice(0, 4)}...{address.slice(-4)}</span>
                 )}
               </div>
 
-              {status !== "connected" ? (
+              {!connected ? (
                 <Button
                   variant="hero"
                   className="w-full rounded-sm"
@@ -74,39 +83,65 @@ const FundAgentModal = ({ agent, onClose }: { agent: Agent; onClose: () => void 
                 </Button>
               ) : (
                 <>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
+                    <span>Available balance</span>
+                    <WalletBalance />
+                  </div>
                   <div className="flex gap-2">
-                    {USD_AMOUNTS.map((a) => (
+                    {FUND_OPTIONS_SOL.map((a) => (
                       <button
                         key={a}
-                        onClick={() => setAmountUsd(a)}
+                        onClick={() => setAmountSol(a)}
                         className={`flex-1 rounded-md py-2 text-sm font-semibold transition-colors ${
-                          amountUsd === a ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-secondary/70"
+                          amountSol === a ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-secondary/70"
                         }`}
                       >
-                        {formatUsd(a, { compact: true })}
+                        {a} SOL
                       </button>
                     ))}
                   </div>
                   <input
-                    value={amountUsd}
-                    onChange={(e) => setAmountUsd(Number(e.target.value.replace(/[^0-9.]/g, "")) || 0)}
+                    value={amountSol}
+                    onChange={(e) => setAmountSol(Number(e.target.value.replace(/[^0-9.]/g, "")) || 0)}
+                    aria-label="Amount in SOL"
                     className="w-full mt-2 rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/50"
                   />
+
+                  {!balanceCheck.ok && balanceCheck.reason === "insufficient" && (
+                    <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                      <div className="font-semibold">Insufficient SOL balance</div>
+                      <div className="mt-0.5">Required: {formatSol(balanceCheck.required)}</div>
+                      <div>Available: {formatSol(balanceCheck.available ?? 0)}</div>
+                    </div>
+                  )}
+                  {balanceStatus === "error" && (
+                    <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
+                      <span>Couldn&apos;t read your balance from the Solana network.</span>
+                      <button onClick={refreshBalance} className="shrink-0 font-semibold hover:underline">
+                        Retry
+                      </button>
+                    </div>
+                  )}
+
                   <Button
                     variant="hero"
                     className="w-full mt-3 rounded-sm"
                     onClick={handleFund}
-                    disabled={stage === "confirming" || amountUsd <= 0}
+                    disabled={stage === "processing" || amountSol <= 0 || !balanceCheck.ok}
                   >
-                    {stage === "confirming" ? "Funding..." : `Fund ${formatUsd(amountUsd)}`}
+                    {stage === "processing" ? "Processing..." : `Fund ${formatSol(amountSol)}`}
                   </Button>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Your wallet balance is checked, not charged. No SOL leaves your wallet.
+                  </p>
                 </>
               )}
             </div>
           ) : (
             <div className="mt-6 text-center">
-              <div className="text-primary text-2xl font-bold">+{formatUsd(fundedAmount)}</div>
+              <div className="text-primary text-2xl font-bold">+{formatSol(fundedSol)}</div>
               <p className="mt-1 text-sm text-muted-foreground">{agent.name} is funded and ready to trade.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Your wallet balance is unchanged.</p>
               <Button variant="hero" className="w-full mt-5 rounded-sm" onClick={onClose}>
                 Done
               </Button>

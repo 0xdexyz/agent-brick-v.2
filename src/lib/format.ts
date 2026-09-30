@@ -47,15 +47,22 @@ export function timeAgo(timestamp: number) {
   return `${days}d ago`;
 }
 
-const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+export function formatSol(value: number) {
+  return `${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 3 }).format(value)} SOL`;
+}
 
-export function mockSolanaKey(seed: number) {
-  let s = seed;
+const REF_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+
+/**
+ * Internal reference for simulation records (agents, trades), e.g. "TRD-7K3Q9M2X".
+ * Deliberately not shaped like a Solana address or transaction signature, so it can't be mistaken for one.
+ */
+export function simRef(prefix: string, seed: number) {
+  let s = Math.floor(seed) % 233280;
   const rand = () => {
     s = (s * 9301 + 49297) % 233280;
     return s / 233280;
   };
-  const chunk = (len: number) =>
-    Array.from({ length: len }, () => B58[Math.floor(rand() * B58.length)]).join("");
-  return `${chunk(4)}...${chunk(4)}`;
+  const body = Array.from({ length: 8 }, () => REF_ALPHABET[Math.floor(rand() * REF_ALPHABET.length)]).join("");
+  return `${prefix}-${body}`;
 }

@@ -18,7 +18,7 @@ const CommandPalette = () => {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const navigate = useNavigate();
-  const { leaderboard, tokens, resetDemo } = useSimulation();
+  const { leaderboard, tokens, resetSimulation } = useSimulation();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -52,11 +52,11 @@ const CommandPalette = () => {
       { id: "go-launches", label: "Go to Launches", sub: "Tokens launched by agents", action: nav("/app/launches") },
       { id: "go-activity", label: "Go to Activity", sub: "Chronological trade stream", action: nav("/app/activity") },
       {
-        id: "reset-demo",
+        id: "reset-data",
         label: "Reset Network Data",
         sub: "Restore the initial agents, tokens, and activity",
         action: () => {
-          resetDemo();
+          resetSimulation();
           setOpen(false);
         },
       },
@@ -73,18 +73,18 @@ const CommandPalette = () => {
       sub: `Solana Token · ${formatUsd(token.price)} · ${formatPercent(token.change24h)}`,
       action: nav(`/app/tokens/${token.id}`),
     }));
-    const walletItems: CommandItem[] = leaderboard.map((agent) => ({
-      id: `wallet-${agent.id}`,
-      label: agent.wallet,
-      sub: `Solana wallet · ${agent.name}`,
+    const refItems: CommandItem[] = leaderboard.map((agent) => ({
+      id: `ref-${agent.id}`,
+      label: agent.agentRef,
+      sub: `Agent ID · ${agent.name}`,
       action: nav(`/app/agents/${agent.id}`),
     }));
 
-    const all = [...staticItems, ...agentItems, ...tokenItems, ...walletItems];
+    const all = [...staticItems, ...agentItems, ...tokenItems, ...refItems];
     if (!query.trim()) return all;
     const q = query.toLowerCase();
     return all.filter((item) => item.label.toLowerCase().includes(q) || item.sub.toLowerCase().includes(q));
-  }, [query, leaderboard, tokens, navigate, resetDemo]);
+  }, [query, leaderboard, tokens, navigate, resetSimulation]);
 
   useEffect(() => {
     setActiveIndex(0);

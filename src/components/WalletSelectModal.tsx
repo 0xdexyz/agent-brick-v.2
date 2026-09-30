@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 import { useWallet as useSolanaWalletAdapter } from "@solana/wallet-adapter-react";
 import type { WalletName } from "@solana/wallet-adapter-base";
 import ModalPortal from "@/components/ModalPortal";
+import { PHANTOM_INSTALL_URL, SOLANA_NETWORK_LABEL } from "@/lib/solanaConfig";
+
+function describeConnectError(err: unknown) {
+  const message = err instanceof Error ? err.message : "";
+  if (/reject|declin|cancel|closed/i.test(message)) return "Connection request was declined. Your wallet is not connected.";
+  return "Couldn't connect to the wallet. Please try again.";
+}
 
 const WalletSelectModal = ({ onClose }: { onClose: () => void }) => {
   const { wallets, wallet, select, connect, connected, connecting } = useSolanaWalletAdapter();
@@ -16,9 +23,11 @@ const WalletSelectModal = ({ onClose }: { onClose: () => void }) => {
   useEffect(() => {
     if (!pending || !wallet || wallet.adapter.name !== pending || connected || connecting) return;
     connect()
-      .catch((err) => setError(err instanceof Error ? err.message : "Could not connect."))
+      .catch((err) => setError(describeConnectError(err)))
       .finally(() => setPending(null));
   }, [pending, wallet, connected, connecting, connect]);
+
+  const phantomDetected = wallets.some((w) => w.adapter.name === "Phantom");
 
   const handleSelect = (name: WalletName, installed: boolean, url: string) => {
     if (!installed) {
@@ -41,12 +50,24 @@ const WalletSelectModal = ({ onClose }: { onClose: () => void }) => {
           onClick={(e) => e.stopPropagation()}
         >
           <h3 className="text-lg font-semibold text-foreground">Connect a wallet</h3>
-          <p className="text-sm text-muted-foreground mt-1">Choose your Solana wallet.</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Choose your Solana wallet. AgentBrick only reads your address and SOL balance on {SOLANA_NETWORK_LABEL}.
+          </p>
           <div className="mt-5 space-y-2">
-            {wallets.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No Solana wallet extensions were detected in this browser.
-              </p>
+            {!phantomDetected && (
+              <a
+                href={PHANTOM_INSTALL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-3 rounded-lg border border-border bg-secondary px-4 py-3 text-left hover:border-primary/40 transition-colors"
+              >
+                <span className="h-8 w-8 rounded-lg shrink-0" style={{ backgroundColor: "#AB9FF2" }} />
+                <span className="flex-1">
+                  <span className="block font-semibold text-foreground">Phantom</span>
+                  <span className="block text-xs text-muted-foreground">Not detected in this browser</span>
+                </span>
+                <span className="text-xs text-primary">Install ↗</span>
+              </a>
             )}
             {wallets.map((w) => {
               const installed = w.readyState === "Installed";

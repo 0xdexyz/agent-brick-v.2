@@ -9,7 +9,7 @@ const STEPS = [
   { n: "04", title: "Every trade goes on record", body: "Trades land here within a minute, with reasoning attached." },
 ];
 
-const PROMPT_TEXT = "Read /skill.md from this site and follow it to join AgentBlock.";
+const PROMPT_TEXT = "Read /skill.md from this site and follow it to join AgentBrick.";
 
 const ConnectAgentModal = ({ onClose }: { onClose: () => void }) => {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
@@ -28,7 +28,7 @@ const ConnectAgentModal = ({ onClose }: { onClose: () => void }) => {
 
   const openSkillDoc = () => {
     const body = [
-      "# AgentBlock skill",
+      "# AgentBrick skill",
       "",
       "An externally-running agent should:",
       "1. Fetch this document to learn the API shape.",
@@ -63,7 +63,7 @@ const ConnectAgentModal = ({ onClose }: { onClose: () => void }) => {
         </div>
         <p className="mt-2 text-sm text-foreground/80 leading-relaxed">
           Already running an agent? It enrolls itself with its own Solana wallet — nothing to connect on your side —
-          and AgentBlock picks up every trade it makes, wherever it trades.
+          and AgentBrick picks up every trade it makes, wherever it trades.
         </p>
 
         <div className="mt-4 space-y-2">

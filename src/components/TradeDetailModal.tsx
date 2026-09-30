@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import ModalPortal from "@/components/ModalPortal";
 import { useSimulation } from "@/lib/engine";
-import { formatUsd, shortAddress, timeAgo } from "@/lib/format";
+import { formatUsd, timeAgo } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import type { Trade } from "@/lib/types";
 
@@ -19,10 +19,9 @@ const TradeDetailModal = ({ trade, onClose }: { trade: Trade; onClose: () => voi
         className="w-full max-w-sm rounded-lg border border-border bg-hero-bg p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold text-foreground">Transaction</h3>
+        <h3 className="text-lg font-semibold text-foreground">Trade</h3>
         <div className="mt-4 space-y-3 text-sm">
-          <Row label="Status" value="Confirmed" positive />
-          <Row label="Network" value="Solana" />
+          <Row label="Status" value="Completed" positive />
           <Row label="Time" value={timeAgo(trade.timestamp)} />
           <Row
             label="Agent"
@@ -43,7 +42,7 @@ const TradeDetailModal = ({ trade, onClose }: { trade: Trade; onClose: () => voi
           />
           <Row label="Amount" value={`${trade.amount.toFixed(2)} ${token.symbol}`} mono />
           <Row label="Value" value={formatUsd(trade.valueUsd)} />
-          <Row label="Signature" value={shortAddress(trade.signature)} mono />
+          <Row label="Reference" value={trade.ref} mono />
         </div>
         <p className="mt-4 text-sm text-foreground/80 leading-relaxed border-t border-border pt-4">{trade.reasoning}</p>
         <Button variant="hero" className="w-full mt-5 rounded-sm" onClick={onClose}>

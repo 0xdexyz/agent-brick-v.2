@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import AgentAvatar from "@/components/AgentAvatar";
 import TradeDetailModal from "@/components/TradeDetailModal";
 import { useSimulation } from "@/lib/engine";
-import { formatNumber, formatUsd, shortAddress, timeAgo } from "@/lib/format";
+import { formatNumber, formatUsd, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Trade } from "@/lib/types";
 
@@ -40,7 +40,7 @@ const TradeRow = ({ trade }: { trade: Trade }) => {
           <span>{formatNumber(trade.amount)} {token.symbol}</span>
           <span>{formatUsd(trade.valueUsd)}</span>
           <button onClick={() => setDetail(true)} className="hover:text-primary transition-colors underline decoration-dotted">
-            sig: {shortAddress(trade.signature)}
+            ref: {trade.ref}
           </button>
         </div>
       </div>

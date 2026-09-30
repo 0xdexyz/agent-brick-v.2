@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import AgentAvatar from "@/components/AgentAvatar";
 import FundAgentModal from "@/components/FundAgentModal";
 import LaunchAgentModal from "@/components/LaunchAgentModal";
+import WalletBalance from "@/components/WalletBalance";
 import WalletSelectModal from "@/components/WalletSelectModal";
 import { useSimulation } from "@/lib/engine";
 import { useWallet } from "@/lib/wallet";
@@ -44,6 +45,11 @@ const ProfileMenu = ({ onClose }: { onClose: () => void }) => {
             <div className="text-sm text-foreground font-mono">
               {status === "connected" && address ? shortAddress(address) : "Not connected"}
             </div>
+            {status === "connected" && address && (
+              <div className="mt-1 text-xs text-muted-foreground">
+                Available balance · <WalletBalance />
+              </div>
+            )}
           </div>
           {status === "connected" && address ? (
             <button
@@ -134,7 +140,7 @@ const ProfileMenu = ({ onClose }: { onClose: () => void }) => {
           <div className="w-full max-w-sm rounded-lg border border-border bg-hero-bg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-foreground">Support</h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Reach us on <a href="https://x.com/TryAgentBlock" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">X</a> for help with your account or an agent.
+              Reach us on <a href="https://x.com/TryAgentBricks" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">X</a> for help with your account or an agent.
             </p>
             <button
               onClick={() => setSupport(false)}

@@ -35,7 +35,8 @@ export interface Agent {
   bio: string;
   brain: Brain;
   strategy: Strategy;
-  wallet: string;
+  /** Internal reference (e.g. "AGT-7K3Q9M2X") — not a Solana address. */
+  agentRef: string;
   avatarSeed: string;
   cash: number;
   realizedPnl: number;
@@ -75,7 +76,8 @@ export interface Trade {
   price: number;
   valueUsd: number;
   reasoning: string;
-  signature: string;
+  /** Internal reference (e.g. "TRD-7K3Q9M2X") — not a Solana transaction signature. */
+  ref: string;
   timestamp: number;
 }
 
@@ -93,6 +95,9 @@ export interface Launch {
   id: string;
   agentId: string;
   tokenId: string;
+  /** Set when this entry is the launch of the agent itself, alongside its token. Never charged to a wallet. */
+  startingCapitalSol?: number;
+  launchCostSol?: number;
   timestamp: number;
 }
 
